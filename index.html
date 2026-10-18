@@ -176,12 +176,12 @@ const norm=a=>{const l=len(a)||1;return mul(a,1/l);};
 const lerp=(a,b,k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
 
 /* ---------- scoring ----------
-   Peaks in g. Forgiving breakpoints tuned for a 1.5 petrol Yaris (0-100 in ~11 s, ~1,065 kg).
+   Peaks in g. Strict breakpoints (v2, after first real drive) tuned for a 1.5 petrol Yaris (0-100 in ~11 s, ~1,065 kg).
    Rain mode treats every peak as 25% harsher. */
 const CURVES = {
-  brake:[[0.20,10],[0.30,8],[0.40,6],[0.50,4],[0.62,2]],
-  accel:[[0.15,10],[0.22,8],[0.30,6],[0.38,4],[0.46,2]],
-  turn: [[0.18,10],[0.28,8],[0.36,6],[0.45,4],[0.55,2]]
+  brake:[[0.10,10],[0.18,8],[0.26,6],[0.34,4],[0.45,2]],
+  accel:[[0.08,10],[0.14,8],[0.20,6],[0.27,4],[0.35,2]],
+  turn: [[0.10,10],[0.18,8],[0.25,6],[0.32,4],[0.42,2]]
 };
 function curve(type,p){
   const c=CURVES[type];
@@ -192,7 +192,7 @@ function curve(type,p){
 function scoreEvent(type,peak,jerk,rain){
   const p = rain? peak*1.25 : peak;
   let s = curve(type,p);
-  if(type!=='turn' && jerk>0.7) s -= Math.min(2,(jerk-0.7)*2);
+  if(jerk>0.5) s -= Math.min(3,(jerk-0.5)*2.5);
   return Math.max(1,Math.min(10,Math.round(s)));
 }
 function tipFor(type,score,peak,jerk,rain){
@@ -259,9 +259,9 @@ function updateLive(){
 
 /* ---------- detection ---------- */
 const DET = { // start threshold, end threshold (g), min speed m/s, min duration s
-  brake:{on:0.12,off:0.06,minV:2.0,minD:0.8},
-  accel:{on:0.10,off:0.05,minV:0.0,minD:0.8},
-  turn: {on:0.12,off:0.07,minV:2.8,minD:1.0}
+  brake:{on:0.08,off:0.04,minV:2.0,minD:0.6},
+  accel:{on:0.07,off:0.035,minV:0.0,minD:0.6},
+  turn: {on:0.09,off:0.05,minV:2.8,minD:0.8}
 };
 function track(type,val,now){
   const cfg=DET[type]; let d=S.det[type];
@@ -286,18 +286,18 @@ function onMotion(e){
   const a=e.acceleration;
   const lin=(a&&a.x!=null)? [a.x,a.y,a.z] : sub(gv,S.gLP);
   const h=sub(lin,mul(gu,dot(lin,gu)));                   // horizontal plane only
-  S.hLP=lerp(S.hLP,h,Math.min(1,dt/0.35));
+  S.hLP=lerp(S.hLP,h,Math.min(1,dt/0.2));
   // learn which way the car's nose points, from GPS speed changes
-  if(S.speed>3 && Math.abs(S.gpsAcc)>0.7){
+  if(S.speed>2 && Math.abs(S.gpsAcc)>0.4){
     S.F=add(S.F,mul(S.hLP,Math.sign(S.gpsAcc))); S.Fn++;
-    if(S.Fn>60){ const fp=sub(S.F,mul(gu,dot(S.F,gu))); if(len(fp)/S.Fn>0.3) S.fwd=norm(fp); }
+    if(S.Fn>30){ const fp=sub(S.F,mul(gu,dot(S.F,gu))); if(len(fp)/S.Fn>0.15) S.fwd=norm(fp); }
   }
   const lonA = S.fwd? dot(S.hLP,S.fwd) : S.gpsAcc;
   // lateral from yaw rate x speed
   const r=e.rotationRate; let latA=0;
   if(r && r.alpha!=null){ const w=[r.beta||0,r.gamma||0,r.alpha||0]; latA = S.speed * (dot(w,gu)*Math.PI/180); }
   else if(S.fwd){ latA = len(sub(S.hLP,mul(S.fwd,lonA))); }
-  S.latLP += (latA-S.latLP)*Math.min(1,dt/0.3);
+  S.latLP += (latA-S.latLP)*Math.min(1,dt/0.2);
   const now=performance.now(); if(now-S.lastProc<40) return; S.lastProc=now;
   const lonG=lonA/G, latG=Math.abs(S.latLP)/G;
   track('brake',-lonG,now); track('accel',lonG,now); track('turn',latG,now);
@@ -311,7 +311,7 @@ function onPos(p){
   if(c.accuracy>50){ setChip('gpsChip','GPS · חלש',false); return; }
   let v=(c.speed!=null && c.speed>=0)? c.speed : null;
   if(S.lastFix){ const dt=(t-S.lastFix.t)/1000; if(dt>0){ const d=hav(S.lastFix.c,c); if(v==null) v=d/dt;
-      if(d<200) S.dist+=d; const acc=((v)-S.speed)/dt; S.gpsAcc += (acc-S.gpsAcc)*0.6; } }
+      if(d<200) S.dist+=d; const acc=((v)-S.speed)/dt; S.gpsAcc += (acc-S.gpsAcc)*0.8; } }
   S.speed = v||0; S.lastFix={c:{latitude:c.latitude,longitude:c.longitude},t};
   $('liveSpeed').textContent=Math.round(S.speed*3.6);
   setChip('gpsChip','GPS · מחובר',true);
