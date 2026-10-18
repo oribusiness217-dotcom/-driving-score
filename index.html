@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="apple-mobile-web-app-capable" content="yes"><style>[hidden]{display:none!important}body{margin:0}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style></head><body>
+<title>ציון נהיגה</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Hebrew:wght@400;500;700&family=Secular+One&display=swap">
+<style>
+/* Layout: one-screen instrument panel - big score, speed, and the last action card; start and summary screens share the shell */
+:root{
+  --bg:#EDF0F2; --panel:#FFFFFF; --fg:#121619; --muted:#5B6670; --line:#D3D9DE; --accent:#1D5FD1;
+  --good:#1E9460; --mid:#B97E08; --bad:#C93B2E;
+  --good-bg:#DDF2E7; --mid-bg:#FBEFD2; --bad-bg:#F8DEDA;
+  --display:'Secular One','Arial Hebrew',Arial,sans-serif;
+  --body:'IBM Plex Sans Hebrew','Arial Hebrew',Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0C0F12; --panel:#161B20; --fg:#E9EDF0; --muted:#8C98A3; --line:#28313A; --accent:#6FA2FF;
+  --good:#3CCB8A; --mid:#F2B530; --bad:#FF6B5C;
+  --good-bg:#0F2A1E; --mid-bg:#2E2410; --bad-bg:#33140F; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0C0F12; --panel:#161B20; --fg:#E9EDF0; --muted:#8C98A3; --line:#28313A; --accent:#6FA2FF;
+  --good:#3CCB8A; --mid:#F2B530; --bad:#FF6B5C;
+  --good-bg:#0F2A1E; --mid-bg:#2E2410; --bad-bg:#33140F; color-scheme:dark;}
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.5}
+#app{min-height:100%;box-sizing:border-box;padding-block:16px 24px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2{font-family:var(--display);font-weight:400;margin:0;text-wrap:balance}
+h1{font-size:32px;line-height:1.1}
+h2{font-size:20px}
+.muted{color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+button{font:inherit;cursor:pointer;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:var(--fg);padding:12px 16px;min-height:48px}
+button:focus-visible,.toggle input:focus-visible+span{outline:3px solid var(--accent);outline-offset:2px}
+.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-size:20px;font-family:var(--display);width:100%;min-height:64px}
+:root[data-theme="dark"] .primary{color:#0C0F12}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .primary{color:#0C0F12}}
+.toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.toggle:last-child{border-bottom:0}
+.toggle input{width:22px;height:22px;accent-color:var(--accent)}
+.label{font-size:12px;letter-spacing:.06em;color:var(--muted)}
+.num{font-family:var(--display);font-variant-numeric:tabular-nums;line-height:1}
+.warn{background:var(--mid-bg);border-color:var(--mid);}
+.demo-banner{background:var(--mid-bg);border:1px solid var(--mid);border-radius:10px;padding:6px 12px;font-size:14px;text-align:center}
+
+/* start */
+.overall{display:flex;align-items:flex-end;gap:12px}
+.overall .num{font-size:64px}
+.hist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.hist li{display:grid;grid-template-columns:1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+.hist li:last-child{border-bottom:0}
+
+/* drive */
+#drive{flex:1;display:flex;flex-direction:column;gap:12px}
+.topbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chip{font-size:13px;border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:var(--panel);color:var(--muted)}
+.chip.ok{color:var(--good);border-color:var(--good)}
+.chip.rain{color:var(--accent);border-color:var(--accent)}
+.topbar .end{margin-inline-start:auto;min-height:44px;padding:8px 14px}
+.dash{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.gauge{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.gauge .big{font-size:84px}
+.gauge .unit{font-size:16px;color:var(--muted)}
+.card{border-radius:16px;padding:20px;border:2px solid var(--line);background:var(--panel);display:flex;flex-direction:column;gap:6px;transition:opacity .4s}
+.card.good{background:var(--good-bg);border-color:var(--good)}
+.card.mid{background:var(--mid-bg);border-color:var(--mid)}
+.card.bad{background:var(--bad-bg);border-color:var(--bad)}
+.card.stale{opacity:.45}
+.card .head{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.card .act{font-family:var(--display);font-size:30px}
+.card .sc{font-size:56px}
+.card .sc small{font-size:20px;color:var(--muted)}
+.card.good .sc{color:var(--good)}.card.mid .sc{color:var(--mid)}.card.bad .sc{color:var(--bad)}
+.card .tip{font-size:22px;font-weight:700}
+.card.empty .act{font-size:22px;color:var(--muted)}
+
+/* summary */
+.types{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.types div{display:flex;flex-direction:column;gap:2px}
+.types .num{font-size:30px}
+.evlist{list-style:none;margin:0;padding:0}
+.evlist li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.evlist li:last-child{border-bottom:0}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.good{background:var(--good)}.dot.mid{background:var(--mid)}.dot.bad{background:var(--bad)}
+.evlist .s{font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums}
+.evlist small{color:var(--muted);display:block}
+@media (prefers-reduced-motion: reduce){.card{transition:none}}
+</style>
+
+<div id="app" dir="rtl" lang="he">
+
+  <!-- START -->
+  <section id="start" style="display:flex;flex-direction:column;gap:16px">
+    <div>
+      <h1>ציון נהיגה</h1>
+      <p class="muted" style="margin:4px 0 0">טויוטה יאריס 2020 · 1.5 בנזין · ציון לכל בלימה, האצה ופנייה</p>
+    </div>
+
+    <div class="panel">
+      <span class="label">הציון הכולל שלך · ממוצע 10 נסיעות אחרונות</span>
+      <div class="overall"><span class="num" id="overallNum">—</span><span class="muted" id="overallSub">עוד אין נסיעות</span></div>
+    </div>
+
+    <div class="panel" id="sensorWarn" hidden></div>
+
+    <div class="panel">
+      <label class="toggle"><span>מצב גשם <small class="muted">· ספים מחמירים</small></span><input type="checkbox" id="rainT"></label>
+      <label class="toggle"><span>הקראה קולית של הטיפ</span><input type="checkbox" id="voiceT" checked></label>
+      <label class="toggle"><span>צליל בפעולה חריגה</span><input type="checkbox" id="beepT" checked></label>
+    </div>
+
+    <button class="primary" id="startBtn">התחל נסיעה</button>
+    <button id="demoBtn">הדגמה בלי לנסוע</button>
+
+    <div class="panel">
+      <h2>נסיעות אחרונות</h2>
+      <ul class="hist" id="histList"><li><span class="muted">אחרי הנסיעה הראשונה היא תופיע כאן עם הציון שלה.</span></li></ul>
+    </div>
+
+    <p class="muted" style="font-size:14px;margin:0">שים את הטלפון בסטנד לפני שמתחילים. בדקות הראשונות האתר לומד איך הטלפון מונח ביחס לרכב, ובינתיים הוא נשען על ה־GPS.</p>
+  </section>
+
+  <!-- DRIVE -->
+  <section id="drive" hidden>
+    <div class="demo-banner" id="demoBanner" hidden>מצב הדגמה · הנתונים מדומים</div>
+    <div class="topbar">
+      <span class="chip" id="gpsChip">GPS · מחפש</span>
+      <span class="chip" id="calChip">כיול · לומד</span>
+      <span class="chip rain" id="rainChip" hidden>גשם</span>
+      <button class="end" id="endBtn">סיים נסיעה</button>
+    </div>
+    <div class="dash">
+      <div class="panel gauge"><span class="label">ציון הנסיעה</span><span class="num big" id="liveScore">—</span><span class="unit" id="liveCount">0 פעולות</span></div>
+      <div class="panel gauge"><span class="label">מהירות</span><span class="num big" id="liveSpeed">0</span><span class="unit">קמ"ש</span></div>
+    </div>
+    <div class="card empty" id="card">
+      <div class="head"><span class="act">הפעולה הבאה תופיע כאן</span></div>
+      <span class="muted">בלימה, האצה או פנייה, עם ציון וטיפ אחד</span>
+    </div>
+  </section>
+
+  <!-- SUMMARY -->
+  <section id="summary" hidden style="display:flex;flex-direction:column;gap:16px">
+    <h1>סיכום הנסיעה</h1>
+    <div class="panel">
+      <div class="overall"><span class="num" id="sumScore">—</span><span class="muted" id="sumMeta"></span></div>
+    </div>
+    <div class="panel types" id="sumTypes"></div>
+    <div class="panel" id="sumFocusWrap"><span class="label">על מה לעבוד בנסיעה הבאה</span><p id="sumFocus" style="margin:4px 0 0;font-weight:700;font-size:18px"></p></div>
+    <div class="panel"><h2>כל הפעולות</h2><ul class="evlist" id="sumList"></ul></div>
+    <button class="primary" id="backBtn">חזרה</button>
+  </section>
+</div>
+
+<script>
+(function(){
+const G = 9.81;
+const $ = id => document.getElementById(id);
+const TYPE_NAME = {brake:'בלימה', accel:'האצה', turn:'פנייה'};
+
+/* ---------- storage (per device) ---------- */
+function loadHist(){ try{ return JSON.parse(localStorage.getItem('drives')||'[]'); }catch(e){ return []; } }
+function saveHist(h){ try{ localStorage.setItem('drives', JSON.stringify(h.slice(0,50))); }catch(e){} }
+
+/* ---------- vector helpers ---------- */
+const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const add=(a,b)=>[a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const mul=(a,s)=>[a[0]*s,a[1]*s,a[2]*s];
+const len=a=>Math.sqrt(dot(a,a));
+const norm=a=>{const l=len(a)||1;return mul(a,1/l);};
+const lerp=(a,b,k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+
+/* ---------- scoring ----------
+   Peaks in g. Forgiving breakpoints tuned for a 1.5 petrol Yaris (0-100 in ~11 s, ~1,065 kg).
+   Rain mode treats every peak as 25% harsher. */
+const CURVES = {
+  brake:[[0.20,10],[0.30,8],[0.40,6],[0.50,4],[0.62,2]],
+  accel:[[0.15,10],[0.22,8],[0.30,6],[0.38,4],[0.46,2]],
+  turn: [[0.18,10],[0.28,8],[0.36,6],[0.45,4],[0.55,2]]
+};
+function curve(type,p){
+  const c=CURVES[type];
+  if(p<=c[0][0]) return 10;
+  for(let i=1;i<c.length;i++){ if(p<=c[i][0]){ const [x0,y0]=c[i-1],[x1,y1]=c[i]; return y0+(y1-y0)*(p-x0)/(x1-x0);} }
+  return 1;
+}
+function scoreEvent(type,peak,jerk,rain){
+  const p = rain? peak*1.25 : peak;
+  let s = curve(type,p);
+  if(type!=='turn' && jerk>0.7) s -= Math.min(2,(jerk-0.7)*2);
+  return Math.max(1,Math.min(10,Math.round(s)));
+}
+function tipFor(type,score,peak,jerk,rain){
+  if(rain && score<=5) return 'בגשם: האט ושמור מרחק כפול';
+  if(type==='brake'){
+    if(score>=9) return 'בלימה חלקה, ככה בדיוק';
+    if(jerk>1.0 && peak<0.4) return 'לחץ על הבלם בהדרגה';
+    if(score>=6) return 'הורד רגל מהגז מוקדם יותר';
+    return 'שמור יותר מרחק מלפנים';
+  }
+  if(type==='accel'){
+    if(score>=9) return 'האצה רכה ויציבה';
+    if(score>=6) return 'לחץ על הגז לאט יותר';
+    return 'לחיצה עמוקה רק מעלה סל"ד';
+  }
+  if(score>=9) return 'פנייה חלקה';
+  if(score>=6) return 'האט לפני הפנייה, לא בתוכה';
+  return 'מהר מדי לפנייה, האט לפני';
+}
+const band = s => s>=8?'good':(s>=5?'mid':'bad');
+
+/* ---------- state ---------- */
+let S = null;
+function freshState(demo){
+  return {running:true, demo, rain:$('rainT').checked, voice:$('voiceT').checked, beep:$('beepT').checked,
+    t0:Date.now(), events:[], speed:0, dist:0,
+    gLP:null, hLP:[0,0,0], F:[0,0,0], Fn:0, fwd:null, latLP:0, gpsAcc:0, lastFix:null,
+    det:{brake:null,accel:null,turn:null}, motionSeen:false, lastProc:0};
+}
+
+/* ---------- audio / voice ---------- */
+let actx=null;
+function beep(){ try{ actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+  const o=actx.createOscillator(), g=actx.createGain(); o.frequency.value=660; g.gain.value=0.15;
+  o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+0.18);}catch(e){} }
+function say(text){ try{ if(!('speechSynthesis' in window)) return; speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text); u.lang='he-IL'; u.rate=1.05; speechSynthesis.speak(u);}catch(e){} }
+
+/* ---------- event recording ---------- */
+let staleTimer=null;
+function record(type,peak,jerk,dur){
+  const score = scoreEvent(type,peak,jerk,S.rain);
+  const tip = tipFor(type,score,peak,jerk,S.rain);
+  const ev = {type,score,tip,peak:+peak.toFixed(2),dur:+dur.toFixed(1),t:Date.now()-S.t0};
+  S.events.push(ev);
+  showCard(ev); updateLive();
+  if(S.beep && score<=4) beep();
+  if(S.voice && score<=7) say(TYPE_NAME[type]+', '+score+'. '+tip);
+}
+function showCard(ev){
+  const c=$('card'); c.className='card '+band(ev.score);
+  c.innerHTML='<div class="head"><span class="act"></span><span class="num sc"></span></div><span class="tip"></span>';
+  c.querySelector('.act').textContent=TYPE_NAME[ev.type];
+  c.querySelector('.sc').innerHTML=ev.score+'<small>/10</small>';
+  c.querySelector('.tip').textContent=ev.tip;
+  clearTimeout(staleTimer); staleTimer=setTimeout(()=>c.classList.add('stale'),8000);
+}
+function driveScore(evs){ return evs.length? Math.round(evs.reduce((a,e)=>a+e.score,0)/evs.length*10) : null; }
+function updateLive(){
+  const s=driveScore(S.events);
+  $('liveScore').textContent = s==null?'—':s;
+  $('liveCount').textContent = S.events.length+' פעולות';
+}
+
+/* ---------- detection ---------- */
+const DET = { // start threshold, end threshold (g), min speed m/s, min duration s
+  brake:{on:0.12,off:0.06,minV:2.0,minD:0.8},
+  accel:{on:0.10,off:0.05,minV:0.0,minD:0.8},
+  turn: {on:0.12,off:0.07,minV:2.8,minD:1.0}
+};
+function track(type,val,now){
+  const cfg=DET[type]; let d=S.det[type];
+  if(!d){ if(val>=cfg.on && S.speed>=cfg.minV) S.det[type]={t0:now,peak:val,last:val,lastT:now,jerk:0,quiet:0}; return; }
+  if(val>d.peak) d.peak=val;
+  const dt=(now-d.lastT)/1000;
+  if(dt>=0.1){ const j=(val-d.last)/dt; if(j>d.jerk) d.jerk=j; d.last=val; d.lastT=now; }
+  if(val<cfg.off){ if(!d.quiet) d.quiet=now;
+    if(now-d.quiet>600){ const dur=(d.quiet-d.t0)/1000; S.det[type]=null; if(dur>=cfg.minD) record(type,d.peak,d.jerk,dur); } }
+  else d.quiet=0;
+}
+
+/* ---------- sensors ---------- */
+function onMotion(e){
+  if(!S||!S.running||S.demo) return;
+  const ag=e.accelerationIncludingGravity; if(!ag||ag.x==null) return;
+  S.motionSeen=true;
+  let dt = e.interval||16; dt = dt>1? dt/1000 : dt; // iOS reports seconds, spec says ms
+  const gv=[ag.x,ag.y,ag.z];
+  S.gLP = S.gLP? lerp(S.gLP,gv,0.004) : gv;               // slow gravity estimate
+  const gu=norm(S.gLP);
+  const a=e.acceleration;
+  const lin=(a&&a.x!=null)? [a.x,a.y,a.z] : sub(gv,S.gLP);
+  const h=sub(lin,mul(gu,dot(lin,gu)));                   // horizontal plane only
+  S.hLP=lerp(S.hLP,h,Math.min(1,dt/0.35));
+  // learn which way the car's nose points, from GPS speed changes
+  if(S.speed>3 && Math.abs(S.gpsAcc)>0.7){
+    S.F=add(S.F,mul(S.hLP,Math.sign(S.gpsAcc))); S.Fn++;
+    if(S.Fn>60){ const fp=sub(S.F,mul(gu,dot(S.F,gu))); if(len(fp)/S.Fn>0.3) S.fwd=norm(fp); }
+  }
+  const lonA = S.fwd? dot(S.hLP,S.fwd) : S.gpsAcc;
+  // lateral from yaw rate x speed
+  const r=e.rotationRate; let latA=0;
+  if(r && r.alpha!=null){ const w=[r.beta||0,r.gamma||0,r.alpha||0]; latA = S.speed * (dot(w,gu)*Math.PI/180); }
+  else if(S.fwd){ latA = len(sub(S.hLP,mul(S.fwd,lonA))); }
+  S.latLP += (latA-S.latLP)*Math.min(1,dt/0.3);
+  const now=performance.now(); if(now-S.lastProc<40) return; S.lastProc=now;
+  const lonG=lonA/G, latG=Math.abs(S.latLP)/G;
+  track('brake',-lonG,now); track('accel',lonG,now); track('turn',latG,now);
+  setChip('calChip', S.fwd? 'כיול · מוכן' : 'כיול · לומד', !!S.fwd);
+}
+function hav(a,b){ const R=6371000,toR=Math.PI/180; const dLa=(b.latitude-a.latitude)*toR, dLo=(b.longitude-a.longitude)*toR;
+  const x=Math.sin(dLa/2)**2+Math.cos(a.latitude*toR)*Math.cos(b.latitude*toR)*Math.sin(dLo/2)**2; return 2*R*Math.asin(Math.sqrt(x)); }
+function onPos(p){
+  if(!S||!S.running||S.demo) return;
+  const c=p.coords, t=p.timestamp;
+  if(c.accuracy>50){ setChip('gpsChip','GPS · חלש',false); return; }
+  let v=(c.speed!=null && c.speed>=0)? c.speed : null;
+  if(S.lastFix){ const dt=(t-S.lastFix.t)/1000; if(dt>0){ const d=hav(S.lastFix.c,c); if(v==null) v=d/dt;
+      if(d<200) S.dist+=d; const acc=((v)-S.speed)/dt; S.gpsAcc += (acc-S.gpsAcc)*0.6; } }
+  S.speed = v||0; S.lastFix={c:{latitude:c.latitude,longitude:c.longitude},t};
+  $('liveSpeed').textContent=Math.round(S.speed*3.6);
+  setChip('gpsChip','GPS · מחובר',true);
+}
+function setChip(id,txt,ok){ const el=$(id); el.textContent=txt; el.classList.toggle('ok',ok); }
+
+let watchId=null, wake=null, demoTimer=null, motionCheck=null;
+async function requestSensors(){
+  if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+    try{ const r=await DeviceMotionEvent.requestPermission(); if(r!=='granted') return 'חיישני התנועה לא אושרו. אפשר לאשר מחדש בהגדרות ספארי של האתר.'; }
+    catch(e){ return 'הדף הזה לא מקבל גישה לחיישני התנועה. פתח את האתר מכתובת משלך (https) כדי לנסוע איתו.'; }
+  }
+  return null;
+}
+async function startDrive(demo){
+  $('sensorWarn').hidden=true;
+  if(!demo){
+    const err=await requestSensors();
+    if(err){ warn(err); return; }
+  }
+  S=freshState(demo);
+  show('drive');
+  $('demoBanner').hidden=!demo; $('rainChip').hidden=!S.rain;
+  $('liveScore').textContent='—'; $('liveCount').textContent='0 פעולות'; $('liveSpeed').textContent='0';
+  const c=$('card'); c.className='card empty'; c.innerHTML='<div class="head"><span class="act">הפעולה הבאה תופיע כאן</span></div><span class="muted">בלימה, האצה או פנייה, עם ציון וטיפ אחד</span>';
+  try{ wake = await navigator.wakeLock.request('screen'); }catch(e){}
+  if(demo){ startDemo(); return; }
+  window.addEventListener('devicemotion',onMotion);
+  if('geolocation' in navigator){
+    watchId=navigator.geolocation.watchPosition(onPos, err=>{
+      setChip('gpsChip', err.code===1?'GPS · לא אושר':'GPS · שגיאה', false);
+    }, {enableHighAccuracy:true, maximumAge:0, timeout:15000});
+  } else setChip('gpsChip','GPS · לא זמין',false);
+  motionCheck=setTimeout(()=>{ if(S&&S.running&&!S.motionSeen) setChip('calChip','חיישנים · חסומים',false); },4000);
+}
+function warn(msg){ const w=$('sensorWarn'); w.hidden=false; w.className='panel warn'; w.textContent=msg; }
+function stopSensors(){
+  window.removeEventListener('devicemotion',onMotion);
+  if(watchId!=null){ try{navigator.geolocation.clearWatch(watchId);}catch(e){} watchId=null; }
+  clearInterval(demoTimer); clearTimeout(motionCheck);
+  try{ wake && wake.release(); }catch(e){} wake=null;
+  try{ speechSynthesis.cancel(); }catch(e){}
+}
+
+/* ---------- demo ---------- */
+function startDemo(){
+  setChip('gpsChip','GPS · מדומה',true); setChip('calChip','כיול · מדומה',true);
+  let tick=0;
+  demoTimer=setInterval(()=>{
+    tick++;
+    S.speed = Math.max(0, 12 + 8*Math.sin(tick/6)); S.dist += S.speed;
+    $('liveSpeed').textContent=Math.round(S.speed*3.6);
+    if(tick%5===0){
+      const types=['brake','accel','turn']; const type=types[Math.floor(Math.random()*3)];
+      const peak = {brake:0.12+Math.random()*0.45, accel:0.1+Math.random()*0.35, turn:0.12+Math.random()*0.4}[type];
+      record(type,peak,Math.random()*1.4,1+Math.random()*3);
+    }
+  },1000);
+}
+
+/* ---------- end + summary ---------- */
+function endDrive(){
+  if(!S) return; S.running=false; stopSensors();
+  const evs=S.events, score=driveScore(evs), mins=Math.max(1,Math.round((Date.now()-S.t0)/60000));
+  const by={}; ['brake','accel','turn'].forEach(t=>{ const l=evs.filter(e=>e.type===t); by[t]= l.length? +(l.reduce((a,e)=>a+e.score,0)/l.length).toFixed(1):null; });
+  if(!S.demo && evs.length){ const h=loadHist(); h.unshift({date:Date.now(),score,mins,km:+(S.dist/1000).toFixed(1),n:evs.length,by,rain:S.rain}); saveHist(h); }
+  $('sumScore').textContent= score==null?'—':score;
+  $('sumMeta').textContent= mins+' דק׳ · '+(S.dist/1000).toFixed(1)+' ק"מ · '+evs.length+' פעולות'+(S.demo?' · הדגמה':'');
+  $('sumTypes').innerHTML='';
+  ['brake','accel','turn'].forEach(t=>{ const d=document.createElement('div');
+    d.innerHTML='<span class="label"></span><span class="num"></span>';
+    d.querySelector('.label').textContent=TYPE_NAME[t];
+    d.querySelector('.num').textContent= by[t]==null?'—':by[t]; $('sumTypes').appendChild(d); });
+  // focus: weakest type, and its most common tip
+  const ranked=Object.entries(by).filter(([,v])=>v!=null).sort((a,b)=>a[1]-b[1]);
+  if(ranked.length){ const t=ranked[0][0]; const tips={}; evs.filter(e=>e.type===t&&e.score<9).forEach(e=>tips[e.tip]=(tips[e.tip]||0)+1);
+    const top=Object.entries(tips).sort((a,b)=>b[1]-a[1])[0];
+    $('sumFocus').textContent = top? TYPE_NAME[t]+': '+top[0] : 'נסיעה חלקה מאוד, תמשיך ככה';
+    $('sumFocusWrap').hidden=false;
+  } else $('sumFocusWrap').hidden=true;
+  const ul=$('sumList'); ul.innerHTML='';
+  if(!evs.length){ ul.innerHTML='<li><span></span><span class="muted">לא נרשמו פעולות בנסיעה הזו.</span><span></span></li>'; }
+  evs.slice().reverse().forEach(e=>{ const li=document.createElement('li');
+    const m=Math.floor(e.t/60000), s=Math.floor(e.t/1000)%60;
+    li.innerHTML='<span class="dot"></span><span><b></b><small></small></span><span class="s"></span>';
+    li.querySelector('.dot').classList.add(band(e.score));
+    li.querySelector('b').textContent=TYPE_NAME[e.type]+' · '+e.tip;
+    li.querySelector('small').textContent=m+':'+String(s).padStart(2,'0')+' · שיא '+e.peak+'g · '+e.dur+' שנ׳';
+    li.querySelector('.s').textContent=e.score; ul.appendChild(li); });
+  show('summary'); renderHome();
+}
+
+/* ---------- home ---------- */
+function renderHome(){
+  const h=loadHist();
+  const last=h.slice(0,10).filter(d=>d.score!=null);
+  if(last.length){ $('overallNum').textContent=Math.round(last.reduce((a,d)=>a+d.score,0)/last.length);
+    $('overallSub').textContent=last.length+' נסיעות'; }
+  const ul=$('histList');
+  if(!h.length) return;
+  ul.innerHTML='';
+  h.slice(0,10).forEach(d=>{ const li=document.createElement('li'); const dt=new Date(d.date);
+    li.innerHTML='<span><b></b><small class="muted" style="display:block"></small></span><span class="num" style="font-size:28px"></span>';
+    li.querySelector('b').textContent=dt.toLocaleDateString('he-IL',{weekday:'short',day:'numeric',month:'numeric'})+' · '+dt.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'});
+    li.querySelector('small').textContent=d.mins+' דק׳ · '+d.km+' ק"מ · '+d.n+' פעולות'+(d.rain?' · גשם':'');
+    li.querySelector('.num').textContent=d.score; ul.appendChild(li); });
+}
+function show(id){ ['start','drive','summary'].forEach(s=>$(s).hidden = s!==id); window.scrollTo(0,0); }
+
+$('startBtn').addEventListener('click',()=>startDrive(false));
+$('demoBtn').addEventListener('click',()=>startDrive(true));
+$('endBtn').addEventListener('click',endDrive);
+$('backBtn').addEventListener('click',()=>show('start'));
+document.addEventListener('visibilitychange',async()=>{ if(document.visibilityState==='visible'&&S&&S.running&&!wake){ try{wake=await navigator.wakeLock.request('screen');}catch(e){} } else if(document.visibilityState!=='visible') wake=null; });
+renderHome();
+})();
+</script>
+
+</body></html>
